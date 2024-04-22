@@ -1,0 +1,3539 @@
+{
+  "contractName": "Time",
+  "abi": [],
+  "metadata": "{\"compiler\":{\"version\":\"0.8.21+commit.d9974bed\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"details\":\"This library provides helpers for manipulating time-related objects. It uses the following types: - `uint48` for timepoints - `uint32` for durations While the library doesn't provide specific types for timepoints and duration, it does provide: - a `Delay` type to represent duration that can be programmed to change value automatically at a given point - additional helper functions\",\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"project:/contracts/@openzeppelin/contracts/utils/types/Time.sol\":\"Time\"},\"evmVersion\":\"shanghai\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"project:/contracts/@openzeppelin/contracts/utils/math/Math.sol\":{\"keccak256\":\"0x005ec64c6313f0555d59e278f9a7a5ab2db5bdc72a027f255a37c327af1ec02d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://4ece9f0b9c8daca08c76b6b5405a6446b6f73b3a15fab7ff56e296cbd4a2c875\",\"dweb:/ipfs/QmQyRpyPRL5SQuAgj6SHmbir3foX65FJjbVTTQrA2EFg6L\"]},\"project:/contracts/@openzeppelin/contracts/utils/math/SafeCast.sol\":{\"keccak256\":\"0xe19a4d5f31d2861e7344e8e535e2feafb913d806d3e2b5fe7782741a2a7094fe\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://4aed79c0fa6f0546ed02f2f683e8f77f0fd2ed7eb34d8bbf3d373c9a6d95b13c\",\"dweb:/ipfs/QmWqVz6UAVqmnWU5pqYPt1o6iDEZyPaBraAA3rKfTTSfYj\"]},\"project:/contracts/@openzeppelin/contracts/utils/types/Time.sol\":{\"keccak256\":\"0xc7755af115020049e4140f224f9ee88d7e1799ffb0646f37bf0df24bf6213f58\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://7f09bf94d5274334ec021f61a04659db303f31e60460e14b709c9bf187740111\",\"dweb:/ipfs/QmNvgomZYUwFAt4cZbPWAiTeSZQreGehY9BK5xyVJsUttb\"]}},\"version\":1}",
+  "bytecode": "0x6055604b600b8282823980515f1a607314603f577f4e487b71000000000000000000000000000000000000000000000000000000005f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220424996bdac574ddc3f7f532780cb4d23e3806aad6f6c1f4ef6f48979dfe72e3b64736f6c63430008150033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220424996bdac574ddc3f7f532780cb4d23e3806aad6f6c1f4ef6f48979dfe72e3b64736f6c63430008150033",
+  "immutableReferences": {},
+  "generatedSources": [],
+  "deployedGeneratedSources": [],
+  "sourceMap": "640:4454:283:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;",
+  "deployedSourceMap": "640:4454:283:-:0;;;;;;;;",
+  "source": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.0) (utils/types/Time.sol)\n\npragma solidity ^0.8.20;\n\nimport {Math} from \"../math/Math.sol\";\nimport {SafeCast} from \"../math/SafeCast.sol\";\n\n/**\n * @dev This library provides helpers for manipulating time-related objects.\n *\n * It uses the following types:\n * - `uint48` for timepoints\n * - `uint32` for durations\n *\n * While the library doesn't provide specific types for timepoints and duration, it does provide:\n * - a `Delay` type to represent duration that can be programmed to change value automatically at a given point\n * - additional helper functions\n */\nlibrary Time {\n    using Time for *;\n\n    /**\n     * @dev Get the block timestamp as a Timepoint.\n     */\n    function timestamp() internal view returns (uint48) {\n        return SafeCast.toUint48(block.timestamp);\n    }\n\n    /**\n     * @dev Get the block number as a Timepoint.\n     */\n    function blockNumber() internal view returns (uint48) {\n        return SafeCast.toUint48(block.number);\n    }\n\n    // ==================================================== Delay =====================================================\n    /**\n     * @dev A `Delay` is a uint32 duration that can be programmed to change value automatically at a given point in the\n     * future. The \"effect\" timepoint describes when the transitions happens from the \"old\" value to the \"new\" value.\n     * This allows updating the delay applied to some operation while keeping some guarantees.\n     *\n     * In particular, the {update} function guarantees that if the delay is reduced, the old delay still applies for\n     * some time. For example if the delay is currently 7 days to do an upgrade, the admin should not be able to set\n     * the delay to 0 and upgrade immediately. If the admin wants to reduce the delay, the old delay (7 days) should\n     * still apply for some time.\n     *\n     *\n     * The `Delay` type is 112 bits long, and packs the following:\n     *\n     * ```\n     *   | [uint48]: effect date (timepoint)\n     *   |           | [uint32]: value before (duration)\n     *   ↓           ↓       ↓ [uint32]: value after (duration)\n     * 0xAAAAAAAAAAAABBBBBBBBCCCCCCCC\n     * ```\n     *\n     * NOTE: The {get} and {withUpdate} functions operate using timestamps. Block number based delays are not currently\n     * supported.\n     */\n    type Delay is uint112;\n\n    /**\n     * @dev Wrap a duration into a Delay to add the one-step \"update in the future\" feature\n     */\n    function toDelay(uint32 duration) internal pure returns (Delay) {\n        return Delay.wrap(duration);\n    }\n\n    /**\n     * @dev Get the value at a given timepoint plus the pending value and effect timepoint if there is a scheduled\n     * change after this timepoint. If the effect timepoint is 0, then the pending value should not be considered.\n     */\n    function _getFullAt(Delay self, uint48 timepoint) private pure returns (uint32, uint32, uint48) {\n        (uint32 valueBefore, uint32 valueAfter, uint48 effect) = self.unpack();\n        return effect <= timepoint ? (valueAfter, 0, 0) : (valueBefore, valueAfter, effect);\n    }\n\n    /**\n     * @dev Get the current value plus the pending value and effect timepoint if there is a scheduled change. If the\n     * effect timepoint is 0, then the pending value should not be considered.\n     */\n    function getFull(Delay self) internal view returns (uint32, uint32, uint48) {\n        return _getFullAt(self, timestamp());\n    }\n\n    /**\n     * @dev Get the current value.\n     */\n    function get(Delay self) internal view returns (uint32) {\n        (uint32 delay, , ) = self.getFull();\n        return delay;\n    }\n\n    /**\n     * @dev Update a Delay object so that it takes a new duration after a timepoint that is automatically computed to\n     * enforce the old delay at the moment of the update. Returns the updated Delay object and the timestamp when the\n     * new delay becomes effective.\n     */\n    function withUpdate(\n        Delay self,\n        uint32 newValue,\n        uint32 minSetback\n    ) internal view returns (Delay updatedDelay, uint48 effect) {\n        uint32 value = self.get();\n        uint32 setback = uint32(Math.max(minSetback, value > newValue ? value - newValue : 0));\n        effect = timestamp() + setback;\n        return (pack(value, newValue, effect), effect);\n    }\n\n    /**\n     * @dev Split a delay into its components: valueBefore, valueAfter and effect (transition timepoint).\n     */\n    function unpack(Delay self) internal pure returns (uint32 valueBefore, uint32 valueAfter, uint48 effect) {\n        uint112 raw = Delay.unwrap(self);\n\n        valueAfter = uint32(raw);\n        valueBefore = uint32(raw >> 32);\n        effect = uint48(raw >> 64);\n\n        return (valueBefore, valueAfter, effect);\n    }\n\n    /**\n     * @dev pack the components into a Delay object.\n     */\n    function pack(uint32 valueBefore, uint32 valueAfter, uint48 effect) internal pure returns (Delay) {\n        return Delay.wrap((uint112(effect) << 64) | (uint112(valueBefore) << 32) | uint112(valueAfter));\n    }\n}\n",
+  "sourcePath": "C:\\Users\\joshu\\OneDrive\\Desktop\\Uni Work 2023-24\\Individual Project\\Smart Contracts\\contracts\\@openzeppelin\\contracts\\utils\\types\\Time.sol",
+  "ast": {
+    "absolutePath": "project:/contracts/@openzeppelin/contracts/utils/types/Time.sol",
+    "exportedSymbols": {
+      "Math": [
+        26370
+      ],
+      "SafeCast": [
+        28125
+      ],
+      "Time": [
+        32277
+      ]
+    },
+    "id": 32278,
+    "license": "MIT",
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 32004,
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".20"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "104:24:283"
+      },
+      {
+        "absolutePath": "project:/contracts/@openzeppelin/contracts/utils/math/Math.sol",
+        "file": "../math/Math.sol",
+        "id": 32006,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 32278,
+        "sourceUnit": 26371,
+        "src": "130:38:283",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 32005,
+              "name": "Math",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 26370,
+              "src": "138:4:283",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "absolutePath": "project:/contracts/@openzeppelin/contracts/utils/math/SafeCast.sol",
+        "file": "../math/SafeCast.sol",
+        "id": 32008,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 32278,
+        "sourceUnit": 28126,
+        "src": "169:46:283",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 32007,
+              "name": "SafeCast",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 28125,
+              "src": "177:8:283",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "Time",
+        "contractDependencies": [],
+        "contractKind": "library",
+        "documentation": {
+          "id": 32009,
+          "nodeType": "StructuredDocumentation",
+          "src": "217:422:283",
+          "text": " @dev This library provides helpers for manipulating time-related objects.\n It uses the following types:\n - `uint48` for timepoints\n - `uint32` for durations\n While the library doesn't provide specific types for timepoints and duration, it does provide:\n - a `Delay` type to represent duration that can be programmed to change value automatically at a given point\n - additional helper functions"
+        },
+        "fullyImplemented": true,
+        "id": 32277,
+        "linearizedBaseContracts": [
+          32277
+        ],
+        "name": "Time",
+        "nameLocation": "648:4:283",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "global": false,
+            "id": 32011,
+            "libraryName": {
+              "id": 32010,
+              "name": "Time",
+              "nameLocations": [
+                "665:4:283"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 32277,
+              "src": "665:4:283"
+            },
+            "nodeType": "UsingForDirective",
+            "src": "659:17:283"
+          },
+          {
+            "body": {
+              "id": 32023,
+              "nodeType": "Block",
+              "src": "802:58:283",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "expression": {
+                          "id": 32019,
+                          "name": "block",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 4294967292,
+                          "src": "837:5:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_magic_block",
+                            "typeString": "block"
+                          }
+                        },
+                        "id": 32020,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "843:9:283",
+                        "memberName": "timestamp",
+                        "nodeType": "MemberAccess",
+                        "src": "837:15:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      ],
+                      "expression": {
+                        "id": 32017,
+                        "name": "SafeCast",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 28125,
+                        "src": "819:8:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_contract$_SafeCast_$28125_$",
+                          "typeString": "type(library SafeCast)"
+                        }
+                      },
+                      "id": 32018,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberLocation": "828:8:283",
+                      "memberName": "toUint48",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 27125,
+                      "src": "819:17:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_pure$_t_uint256_$returns$_t_uint48_$",
+                        "typeString": "function (uint256) pure returns (uint48)"
+                      }
+                    },
+                    "id": 32021,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "819:34:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "functionReturnParameters": 32016,
+                  "id": 32022,
+                  "nodeType": "Return",
+                  "src": "812:41:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32012,
+              "nodeType": "StructuredDocumentation",
+              "src": "682:63:283",
+              "text": " @dev Get the block timestamp as a Timepoint."
+            },
+            "id": 32024,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "timestamp",
+            "nameLocation": "759:9:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32013,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "768:2:283"
+            },
+            "returnParameters": {
+              "id": 32016,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32015,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32024,
+                  "src": "794:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32014,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "794:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "793:8:283"
+            },
+            "scope": 32277,
+            "src": "750:110:283",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "body": {
+              "id": 32036,
+              "nodeType": "Block",
+              "src": "985:55:283",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "expression": {
+                          "id": 32032,
+                          "name": "block",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 4294967292,
+                          "src": "1020:5:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_magic_block",
+                            "typeString": "block"
+                          }
+                        },
+                        "id": 32033,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "1026:6:283",
+                        "memberName": "number",
+                        "nodeType": "MemberAccess",
+                        "src": "1020:12:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      ],
+                      "expression": {
+                        "id": 32030,
+                        "name": "SafeCast",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 28125,
+                        "src": "1002:8:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_contract$_SafeCast_$28125_$",
+                          "typeString": "type(library SafeCast)"
+                        }
+                      },
+                      "id": 32031,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberLocation": "1011:8:283",
+                      "memberName": "toUint48",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 27125,
+                      "src": "1002:17:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_pure$_t_uint256_$returns$_t_uint48_$",
+                        "typeString": "function (uint256) pure returns (uint48)"
+                      }
+                    },
+                    "id": 32034,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "1002:31:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "functionReturnParameters": 32029,
+                  "id": 32035,
+                  "nodeType": "Return",
+                  "src": "995:38:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32025,
+              "nodeType": "StructuredDocumentation",
+              "src": "866:60:283",
+              "text": " @dev Get the block number as a Timepoint."
+            },
+            "id": 32037,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "blockNumber",
+            "nameLocation": "940:11:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32026,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "951:2:283"
+            },
+            "returnParameters": {
+              "id": 32029,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32028,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32037,
+                  "src": "977:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32027,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "977:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "976:8:283"
+            },
+            "scope": 32277,
+            "src": "931:109:283",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "canonicalName": "Time.Delay",
+            "id": 32039,
+            "name": "Delay",
+            "nameLocation": "2377:5:283",
+            "nodeType": "UserDefinedValueTypeDefinition",
+            "src": "2372:22:283",
+            "underlyingType": {
+              "id": 32038,
+              "name": "uint112",
+              "nodeType": "ElementaryTypeName",
+              "src": "2386:7:283",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint112",
+                "typeString": "uint112"
+              }
+            }
+          },
+          {
+            "body": {
+              "id": 32053,
+              "nodeType": "Block",
+              "src": "2572:44:283",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "id": 32050,
+                        "name": "duration",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32042,
+                        "src": "2600:8:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      ],
+                      "expression": {
+                        "id": 32048,
+                        "name": "Delay",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32039,
+                        "src": "2589:5:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_userDefinedValueType$_Delay_$32039_$",
+                          "typeString": "type(Time.Delay)"
+                        }
+                      },
+                      "id": 32049,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "lValueRequested": false,
+                      "memberLocation": "2595:4:283",
+                      "memberName": "wrap",
+                      "nodeType": "MemberAccess",
+                      "src": "2589:10:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_wrap_pure$_t_uint112_$returns$_t_userDefinedValueType$_Delay_$32039_$",
+                        "typeString": "function (uint112) pure returns (Time.Delay)"
+                      }
+                    },
+                    "id": 32051,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "2589:20:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "functionReturnParameters": 32047,
+                  "id": 32052,
+                  "nodeType": "Return",
+                  "src": "2582:27:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32040,
+              "nodeType": "StructuredDocumentation",
+              "src": "2400:103:283",
+              "text": " @dev Wrap a duration into a Delay to add the one-step \"update in the future\" feature"
+            },
+            "id": 32054,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "toDelay",
+            "nameLocation": "2517:7:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32043,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32042,
+                  "mutability": "mutable",
+                  "name": "duration",
+                  "nameLocation": "2532:8:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32054,
+                  "src": "2525:15:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32041,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2525:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2524:17:283"
+            },
+            "returnParameters": {
+              "id": 32047,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32046,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32054,
+                  "src": "2565:5:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32045,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32044,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "2565:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "2565:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "2565:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2564:7:283"
+            },
+            "scope": 32277,
+            "src": "2508:108:283",
+            "stateMutability": "pure",
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "body": {
+              "id": 32092,
+              "nodeType": "Block",
+              "src": "2964:180:283",
+              "statements": [
+                {
+                  "assignments": [
+                    32070,
+                    32072,
+                    32074
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 32070,
+                      "mutability": "mutable",
+                      "name": "valueBefore",
+                      "nameLocation": "2982:11:283",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 32092,
+                      "src": "2975:18:283",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      },
+                      "typeName": {
+                        "id": 32069,
+                        "name": "uint32",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "2975:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      "visibility": "internal"
+                    },
+                    {
+                      "constant": false,
+                      "id": 32072,
+                      "mutability": "mutable",
+                      "name": "valueAfter",
+                      "nameLocation": "3002:10:283",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 32092,
+                      "src": "2995:17:283",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      },
+                      "typeName": {
+                        "id": 32071,
+                        "name": "uint32",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "2995:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      "visibility": "internal"
+                    },
+                    {
+                      "constant": false,
+                      "id": 32074,
+                      "mutability": "mutable",
+                      "name": "effect",
+                      "nameLocation": "3021:6:283",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 32092,
+                      "src": "3014:13:283",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint48",
+                        "typeString": "uint48"
+                      },
+                      "typeName": {
+                        "id": 32073,
+                        "name": "uint48",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "3014:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 32078,
+                  "initialValue": {
+                    "arguments": [],
+                    "expression": {
+                      "argumentTypes": [],
+                      "expression": {
+                        "id": 32075,
+                        "name": "self",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32058,
+                        "src": "3031:4:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        }
+                      },
+                      "id": 32076,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberLocation": "3036:6:283",
+                      "memberName": "unpack",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 32238,
+                      "src": "3031:11:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_pure$_t_userDefinedValueType$_Delay_$32039_$returns$_t_uint32_$_t_uint32_$_t_uint48_$attached_to$_t_userDefinedValueType$_Delay_$32039_$",
+                        "typeString": "function (Time.Delay) pure returns (uint32,uint32,uint48)"
+                      }
+                    },
+                    "id": 32077,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "3031:13:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_uint32_$_t_uint32_$_t_uint48_$",
+                      "typeString": "tuple(uint32,uint32,uint48)"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "2974:70:283"
+                },
+                {
+                  "expression": {
+                    "condition": {
+                      "commonType": {
+                        "typeIdentifier": "t_uint48",
+                        "typeString": "uint48"
+                      },
+                      "id": 32081,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "leftExpression": {
+                        "id": 32079,
+                        "name": "effect",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32074,
+                        "src": "3061:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      },
+                      "nodeType": "BinaryOperation",
+                      "operator": "<=",
+                      "rightExpression": {
+                        "id": 32080,
+                        "name": "timepoint",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32060,
+                        "src": "3071:9:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      },
+                      "src": "3061:19:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_bool",
+                        "typeString": "bool"
+                      }
+                    },
+                    "falseExpression": {
+                      "components": [
+                        {
+                          "id": 32086,
+                          "name": "valueBefore",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32070,
+                          "src": "3105:11:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint32",
+                            "typeString": "uint32"
+                          }
+                        },
+                        {
+                          "id": 32087,
+                          "name": "valueAfter",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32072,
+                          "src": "3118:10:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint32",
+                            "typeString": "uint32"
+                          }
+                        },
+                        {
+                          "id": 32088,
+                          "name": "effect",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32074,
+                          "src": "3130:6:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint48",
+                            "typeString": "uint48"
+                          }
+                        }
+                      ],
+                      "id": 32089,
+                      "isConstant": false,
+                      "isInlineArray": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "nodeType": "TupleExpression",
+                      "src": "3104:33:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_tuple$_t_uint32_$_t_uint32_$_t_uint48_$",
+                        "typeString": "tuple(uint32,uint32,uint48)"
+                      }
+                    },
+                    "id": 32090,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "Conditional",
+                    "src": "3061:76:283",
+                    "trueExpression": {
+                      "components": [
+                        {
+                          "id": 32082,
+                          "name": "valueAfter",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32072,
+                          "src": "3084:10:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint32",
+                            "typeString": "uint32"
+                          }
+                        },
+                        {
+                          "hexValue": "30",
+                          "id": 32083,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": true,
+                          "kind": "number",
+                          "lValueRequested": false,
+                          "nodeType": "Literal",
+                          "src": "3096:1:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_rational_0_by_1",
+                            "typeString": "int_const 0"
+                          },
+                          "value": "0"
+                        },
+                        {
+                          "hexValue": "30",
+                          "id": 32084,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": true,
+                          "kind": "number",
+                          "lValueRequested": false,
+                          "nodeType": "Literal",
+                          "src": "3099:1:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_rational_0_by_1",
+                            "typeString": "int_const 0"
+                          },
+                          "value": "0"
+                        }
+                      ],
+                      "id": 32085,
+                      "isConstant": false,
+                      "isInlineArray": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "nodeType": "TupleExpression",
+                      "src": "3083:18:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_tuple$_t_uint32_$_t_rational_0_by_1_$_t_rational_0_by_1_$",
+                        "typeString": "tuple(uint32,int_const 0,int_const 0)"
+                      }
+                    },
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_uint32_$_t_uint32_$_t_uint48_$",
+                      "typeString": "tuple(uint32,uint32,uint48)"
+                    }
+                  },
+                  "functionReturnParameters": 32068,
+                  "id": 32091,
+                  "nodeType": "Return",
+                  "src": "3054:83:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32055,
+              "nodeType": "StructuredDocumentation",
+              "src": "2622:241:283",
+              "text": " @dev Get the value at a given timepoint plus the pending value and effect timepoint if there is a scheduled\n change after this timepoint. If the effect timepoint is 0, then the pending value should not be considered."
+            },
+            "id": 32093,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "_getFullAt",
+            "nameLocation": "2877:10:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32061,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32058,
+                  "mutability": "mutable",
+                  "name": "self",
+                  "nameLocation": "2894:4:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32093,
+                  "src": "2888:10:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32057,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32056,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "2888:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "2888:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "2888:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32060,
+                  "mutability": "mutable",
+                  "name": "timepoint",
+                  "nameLocation": "2907:9:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32093,
+                  "src": "2900:16:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32059,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2900:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2887:30:283"
+            },
+            "returnParameters": {
+              "id": 32068,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32063,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32093,
+                  "src": "2940:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32062,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2940:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32065,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32093,
+                  "src": "2948:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32064,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2948:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32067,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32093,
+                  "src": "2956:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32066,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2956:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2939:24:283"
+            },
+            "scope": 32277,
+            "src": "2868:276:283",
+            "stateMutability": "pure",
+            "virtual": false,
+            "visibility": "private"
+          },
+          {
+            "body": {
+              "id": 32112,
+              "nodeType": "Block",
+              "src": "3438:53:283",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "id": 32107,
+                        "name": "self",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32097,
+                        "src": "3466:4:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        }
+                      },
+                      {
+                        "arguments": [],
+                        "expression": {
+                          "argumentTypes": [],
+                          "id": 32108,
+                          "name": "timestamp",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32024,
+                          "src": "3472:9:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_view$__$returns$_t_uint48_$",
+                            "typeString": "function () view returns (uint48)"
+                          }
+                        },
+                        "id": 32109,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "kind": "functionCall",
+                        "lValueRequested": false,
+                        "nameLocations": [],
+                        "names": [],
+                        "nodeType": "FunctionCall",
+                        "src": "3472:11:283",
+                        "tryCall": false,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        },
+                        {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      ],
+                      "id": 32106,
+                      "name": "_getFullAt",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 32093,
+                      "src": "3455:10:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_pure$_t_userDefinedValueType$_Delay_$32039_$_t_uint48_$returns$_t_uint32_$_t_uint32_$_t_uint48_$",
+                        "typeString": "function (Time.Delay,uint48) pure returns (uint32,uint32,uint48)"
+                      }
+                    },
+                    "id": 32110,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "3455:29:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_uint32_$_t_uint32_$_t_uint48_$",
+                      "typeString": "tuple(uint32,uint32,uint48)"
+                    }
+                  },
+                  "functionReturnParameters": 32105,
+                  "id": 32111,
+                  "nodeType": "Return",
+                  "src": "3448:36:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32094,
+              "nodeType": "StructuredDocumentation",
+              "src": "3150:207:283",
+              "text": " @dev Get the current value plus the pending value and effect timepoint if there is a scheduled change. If the\n effect timepoint is 0, then the pending value should not be considered."
+            },
+            "id": 32113,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getFull",
+            "nameLocation": "3371:7:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32098,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32097,
+                  "mutability": "mutable",
+                  "name": "self",
+                  "nameLocation": "3385:4:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32113,
+                  "src": "3379:10:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32096,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32095,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "3379:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "3379:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "3379:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3378:12:283"
+            },
+            "returnParameters": {
+              "id": 32105,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32100,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32113,
+                  "src": "3414:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32099,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3414:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32102,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32113,
+                  "src": "3422:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32101,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3422:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32104,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32113,
+                  "src": "3430:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32103,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3430:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3413:24:283"
+            },
+            "scope": 32277,
+            "src": "3362:129:283",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "body": {
+              "id": 32130,
+              "nodeType": "Block",
+              "src": "3604:74:283",
+              "statements": [
+                {
+                  "assignments": [
+                    32123,
+                    null,
+                    null
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 32123,
+                      "mutability": "mutable",
+                      "name": "delay",
+                      "nameLocation": "3622:5:283",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 32130,
+                      "src": "3615:12:283",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      },
+                      "typeName": {
+                        "id": 32122,
+                        "name": "uint32",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "3615:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      "visibility": "internal"
+                    },
+                    null,
+                    null
+                  ],
+                  "id": 32127,
+                  "initialValue": {
+                    "arguments": [],
+                    "expression": {
+                      "argumentTypes": [],
+                      "expression": {
+                        "id": 32124,
+                        "name": "self",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32117,
+                        "src": "3635:4:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        }
+                      },
+                      "id": 32125,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberLocation": "3640:7:283",
+                      "memberName": "getFull",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 32113,
+                      "src": "3635:12:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_view$_t_userDefinedValueType$_Delay_$32039_$returns$_t_uint32_$_t_uint32_$_t_uint48_$attached_to$_t_userDefinedValueType$_Delay_$32039_$",
+                        "typeString": "function (Time.Delay) view returns (uint32,uint32,uint48)"
+                      }
+                    },
+                    "id": 32126,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "3635:14:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_uint32_$_t_uint32_$_t_uint48_$",
+                      "typeString": "tuple(uint32,uint32,uint48)"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "3614:35:283"
+                },
+                {
+                  "expression": {
+                    "id": 32128,
+                    "name": "delay",
+                    "nodeType": "Identifier",
+                    "overloadedDeclarations": [],
+                    "referencedDeclaration": 32123,
+                    "src": "3666:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "functionReturnParameters": 32121,
+                  "id": 32129,
+                  "nodeType": "Return",
+                  "src": "3659:12:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32114,
+              "nodeType": "StructuredDocumentation",
+              "src": "3497:46:283",
+              "text": " @dev Get the current value."
+            },
+            "id": 32131,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "get",
+            "nameLocation": "3557:3:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32118,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32117,
+                  "mutability": "mutable",
+                  "name": "self",
+                  "nameLocation": "3567:4:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32131,
+                  "src": "3561:10:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32116,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32115,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "3561:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "3561:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "3561:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3560:12:283"
+            },
+            "returnParameters": {
+              "id": 32121,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32120,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32131,
+                  "src": "3596:6:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32119,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3596:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3595:8:283"
+            },
+            "scope": 32277,
+            "src": "3548:130:283",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "body": {
+              "id": 32186,
+              "nodeType": "Block",
+              "src": "4128:234:283",
+              "statements": [
+                {
+                  "assignments": [
+                    32148
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 32148,
+                      "mutability": "mutable",
+                      "name": "value",
+                      "nameLocation": "4145:5:283",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 32186,
+                      "src": "4138:12:283",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      },
+                      "typeName": {
+                        "id": 32147,
+                        "name": "uint32",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "4138:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 32152,
+                  "initialValue": {
+                    "arguments": [],
+                    "expression": {
+                      "argumentTypes": [],
+                      "expression": {
+                        "id": 32149,
+                        "name": "self",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32135,
+                        "src": "4153:4:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        }
+                      },
+                      "id": 32150,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberLocation": "4158:3:283",
+                      "memberName": "get",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 32131,
+                      "src": "4153:8:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_view$_t_userDefinedValueType$_Delay_$32039_$returns$_t_uint32_$attached_to$_t_userDefinedValueType$_Delay_$32039_$",
+                        "typeString": "function (Time.Delay) view returns (uint32)"
+                      }
+                    },
+                    "id": 32151,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4153:10:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "4138:25:283"
+                },
+                {
+                  "assignments": [
+                    32154
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 32154,
+                      "mutability": "mutable",
+                      "name": "setback",
+                      "nameLocation": "4180:7:283",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 32186,
+                      "src": "4173:14:283",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      },
+                      "typeName": {
+                        "id": 32153,
+                        "name": "uint32",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "4173:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 32170,
+                  "initialValue": {
+                    "arguments": [
+                      {
+                        "arguments": [
+                          {
+                            "id": 32159,
+                            "name": "minSetback",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 32139,
+                            "src": "4206:10:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            }
+                          },
+                          {
+                            "condition": {
+                              "commonType": {
+                                "typeIdentifier": "t_uint32",
+                                "typeString": "uint32"
+                              },
+                              "id": 32162,
+                              "isConstant": false,
+                              "isLValue": false,
+                              "isPure": false,
+                              "lValueRequested": false,
+                              "leftExpression": {
+                                "id": 32160,
+                                "name": "value",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 32148,
+                                "src": "4218:5:283",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint32",
+                                  "typeString": "uint32"
+                                }
+                              },
+                              "nodeType": "BinaryOperation",
+                              "operator": ">",
+                              "rightExpression": {
+                                "id": 32161,
+                                "name": "newValue",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 32137,
+                                "src": "4226:8:283",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint32",
+                                  "typeString": "uint32"
+                                }
+                              },
+                              "src": "4218:16:283",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_bool",
+                                "typeString": "bool"
+                              }
+                            },
+                            "falseExpression": {
+                              "hexValue": "30",
+                              "id": 32166,
+                              "isConstant": false,
+                              "isLValue": false,
+                              "isPure": true,
+                              "kind": "number",
+                              "lValueRequested": false,
+                              "nodeType": "Literal",
+                              "src": "4256:1:283",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_rational_0_by_1",
+                                "typeString": "int_const 0"
+                              },
+                              "value": "0"
+                            },
+                            "id": 32167,
+                            "isConstant": false,
+                            "isLValue": false,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "nodeType": "Conditional",
+                            "src": "4218:39:283",
+                            "trueExpression": {
+                              "commonType": {
+                                "typeIdentifier": "t_uint32",
+                                "typeString": "uint32"
+                              },
+                              "id": 32165,
+                              "isConstant": false,
+                              "isLValue": false,
+                              "isPure": false,
+                              "lValueRequested": false,
+                              "leftExpression": {
+                                "id": 32163,
+                                "name": "value",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 32148,
+                                "src": "4237:5:283",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint32",
+                                  "typeString": "uint32"
+                                }
+                              },
+                              "nodeType": "BinaryOperation",
+                              "operator": "-",
+                              "rightExpression": {
+                                "id": 32164,
+                                "name": "newValue",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 32137,
+                                "src": "4245:8:283",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint32",
+                                  "typeString": "uint32"
+                                }
+                              },
+                              "src": "4237:16:283",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_uint32",
+                                "typeString": "uint32"
+                              }
+                            },
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            }
+                          }
+                        ],
+                        "expression": {
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            },
+                            {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            }
+                          ],
+                          "expression": {
+                            "id": 32157,
+                            "name": "Math",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 26370,
+                            "src": "4197:4:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_type$_t_contract$_Math_$26370_$",
+                              "typeString": "type(library Math)"
+                            }
+                          },
+                          "id": 32158,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "memberLocation": "4202:3:283",
+                          "memberName": "max",
+                          "nodeType": "MemberAccess",
+                          "referencedDeclaration": 25503,
+                          "src": "4197:8:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
+                            "typeString": "function (uint256,uint256) pure returns (uint256)"
+                          }
+                        },
+                        "id": 32168,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "kind": "functionCall",
+                        "lValueRequested": false,
+                        "nameLocations": [],
+                        "names": [],
+                        "nodeType": "FunctionCall",
+                        "src": "4197:61:283",
+                        "tryCall": false,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      ],
+                      "id": 32156,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "lValueRequested": false,
+                      "nodeType": "ElementaryTypeNameExpression",
+                      "src": "4190:6:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_type$_t_uint32_$",
+                        "typeString": "type(uint32)"
+                      },
+                      "typeName": {
+                        "id": 32155,
+                        "name": "uint32",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "4190:6:283",
+                        "typeDescriptions": {}
+                      }
+                    },
+                    "id": 32169,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "typeConversion",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4190:69:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "4173:86:283"
+                },
+                {
+                  "expression": {
+                    "id": 32176,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "id": 32171,
+                      "name": "effect",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 32145,
+                      "src": "4269:6:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint48",
+                        "typeString": "uint48"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "commonType": {
+                        "typeIdentifier": "t_uint48",
+                        "typeString": "uint48"
+                      },
+                      "id": 32175,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "leftExpression": {
+                        "arguments": [],
+                        "expression": {
+                          "argumentTypes": [],
+                          "id": 32172,
+                          "name": "timestamp",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32024,
+                          "src": "4278:9:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_view$__$returns$_t_uint48_$",
+                            "typeString": "function () view returns (uint48)"
+                          }
+                        },
+                        "id": 32173,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "kind": "functionCall",
+                        "lValueRequested": false,
+                        "nameLocations": [],
+                        "names": [],
+                        "nodeType": "FunctionCall",
+                        "src": "4278:11:283",
+                        "tryCall": false,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      },
+                      "nodeType": "BinaryOperation",
+                      "operator": "+",
+                      "rightExpression": {
+                        "id": 32174,
+                        "name": "setback",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32154,
+                        "src": "4292:7:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      "src": "4278:21:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint48",
+                        "typeString": "uint48"
+                      }
+                    },
+                    "src": "4269:30:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "id": 32177,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4269:30:283"
+                },
+                {
+                  "expression": {
+                    "components": [
+                      {
+                        "arguments": [
+                          {
+                            "id": 32179,
+                            "name": "value",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 32148,
+                            "src": "4322:5:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            }
+                          },
+                          {
+                            "id": 32180,
+                            "name": "newValue",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 32137,
+                            "src": "4329:8:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            }
+                          },
+                          {
+                            "id": 32181,
+                            "name": "effect",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 32145,
+                            "src": "4339:6:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint48",
+                              "typeString": "uint48"
+                            }
+                          }
+                        ],
+                        "expression": {
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            },
+                            {
+                              "typeIdentifier": "t_uint32",
+                              "typeString": "uint32"
+                            },
+                            {
+                              "typeIdentifier": "t_uint48",
+                              "typeString": "uint48"
+                            }
+                          ],
+                          "id": 32178,
+                          "name": "pack",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32276,
+                          "src": "4317:4:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$_t_uint32_$_t_uint32_$_t_uint48_$returns$_t_userDefinedValueType$_Delay_$32039_$",
+                            "typeString": "function (uint32,uint32,uint48) pure returns (Time.Delay)"
+                          }
+                        },
+                        "id": 32182,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "kind": "functionCall",
+                        "lValueRequested": false,
+                        "nameLocations": [],
+                        "names": [],
+                        "nodeType": "FunctionCall",
+                        "src": "4317:29:283",
+                        "tryCall": false,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        }
+                      },
+                      {
+                        "id": 32183,
+                        "name": "effect",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32145,
+                        "src": "4348:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      }
+                    ],
+                    "id": 32184,
+                    "isConstant": false,
+                    "isInlineArray": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "TupleExpression",
+                    "src": "4316:39:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_userDefinedValueType$_Delay_$32039_$_t_uint48_$",
+                      "typeString": "tuple(Time.Delay,uint48)"
+                    }
+                  },
+                  "functionReturnParameters": 32146,
+                  "id": 32185,
+                  "nodeType": "Return",
+                  "src": "4309:46:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32132,
+              "nodeType": "StructuredDocumentation",
+              "src": "3684:283:283",
+              "text": " @dev Update a Delay object so that it takes a new duration after a timepoint that is automatically computed to\n enforce the old delay at the moment of the update. Returns the updated Delay object and the timestamp when the\n new delay becomes effective."
+            },
+            "id": 32187,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "withUpdate",
+            "nameLocation": "3981:10:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32140,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32135,
+                  "mutability": "mutable",
+                  "name": "self",
+                  "nameLocation": "4007:4:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32187,
+                  "src": "4001:10:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32134,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32133,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "4001:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "4001:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "4001:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32137,
+                  "mutability": "mutable",
+                  "name": "newValue",
+                  "nameLocation": "4028:8:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32187,
+                  "src": "4021:15:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32136,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4021:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32139,
+                  "mutability": "mutable",
+                  "name": "minSetback",
+                  "nameLocation": "4053:10:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32187,
+                  "src": "4046:17:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32138,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4046:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3991:78:283"
+            },
+            "returnParameters": {
+              "id": 32146,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32143,
+                  "mutability": "mutable",
+                  "name": "updatedDelay",
+                  "nameLocation": "4099:12:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32187,
+                  "src": "4093:18:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32142,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32141,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "4093:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "4093:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "4093:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32145,
+                  "mutability": "mutable",
+                  "name": "effect",
+                  "nameLocation": "4120:6:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32187,
+                  "src": "4113:13:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32144,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4113:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "4092:35:283"
+            },
+            "scope": 32277,
+            "src": "3972:390:283",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "body": {
+              "id": 32237,
+              "nodeType": "Block",
+              "src": "4595:212:283",
+              "statements": [
+                {
+                  "assignments": [
+                    32201
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 32201,
+                      "mutability": "mutable",
+                      "name": "raw",
+                      "nameLocation": "4613:3:283",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 32237,
+                      "src": "4605:11:283",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint112",
+                        "typeString": "uint112"
+                      },
+                      "typeName": {
+                        "id": 32200,
+                        "name": "uint112",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "4605:7:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint112",
+                          "typeString": "uint112"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 32206,
+                  "initialValue": {
+                    "arguments": [
+                      {
+                        "id": 32204,
+                        "name": "self",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32191,
+                        "src": "4632:4:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                          "typeString": "Time.Delay"
+                        }
+                      ],
+                      "expression": {
+                        "id": 32202,
+                        "name": "Delay",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32039,
+                        "src": "4619:5:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_userDefinedValueType$_Delay_$32039_$",
+                          "typeString": "type(Time.Delay)"
+                        }
+                      },
+                      "id": 32203,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "lValueRequested": false,
+                      "memberLocation": "4625:6:283",
+                      "memberName": "unwrap",
+                      "nodeType": "MemberAccess",
+                      "src": "4619:12:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_unwrap_pure$_t_userDefinedValueType$_Delay_$32039_$returns$_t_uint112_$",
+                        "typeString": "function (Time.Delay) pure returns (uint112)"
+                      }
+                    },
+                    "id": 32205,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4619:18:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint112",
+                      "typeString": "uint112"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "4605:32:283"
+                },
+                {
+                  "expression": {
+                    "id": 32212,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "id": 32207,
+                      "name": "valueAfter",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 32196,
+                      "src": "4648:10:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "arguments": [
+                        {
+                          "id": 32210,
+                          "name": "raw",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 32201,
+                          "src": "4668:3:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        }
+                      ],
+                      "expression": {
+                        "argumentTypes": [
+                          {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        ],
+                        "id": 32209,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "lValueRequested": false,
+                        "nodeType": "ElementaryTypeNameExpression",
+                        "src": "4661:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_uint32_$",
+                          "typeString": "type(uint32)"
+                        },
+                        "typeName": {
+                          "id": 32208,
+                          "name": "uint32",
+                          "nodeType": "ElementaryTypeName",
+                          "src": "4661:6:283",
+                          "typeDescriptions": {}
+                        }
+                      },
+                      "id": 32211,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "kind": "typeConversion",
+                      "lValueRequested": false,
+                      "nameLocations": [],
+                      "names": [],
+                      "nodeType": "FunctionCall",
+                      "src": "4661:11:283",
+                      "tryCall": false,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      }
+                    },
+                    "src": "4648:24:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "id": 32213,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4648:24:283"
+                },
+                {
+                  "expression": {
+                    "id": 32221,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "id": 32214,
+                      "name": "valueBefore",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 32194,
+                      "src": "4682:11:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "arguments": [
+                        {
+                          "commonType": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          },
+                          "id": 32219,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "leftExpression": {
+                            "id": 32217,
+                            "name": "raw",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 32201,
+                            "src": "4703:3:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint112",
+                              "typeString": "uint112"
+                            }
+                          },
+                          "nodeType": "BinaryOperation",
+                          "operator": ">>",
+                          "rightExpression": {
+                            "hexValue": "3332",
+                            "id": 32218,
+                            "isConstant": false,
+                            "isLValue": false,
+                            "isPure": true,
+                            "kind": "number",
+                            "lValueRequested": false,
+                            "nodeType": "Literal",
+                            "src": "4710:2:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_rational_32_by_1",
+                              "typeString": "int_const 32"
+                            },
+                            "value": "32"
+                          },
+                          "src": "4703:9:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        }
+                      ],
+                      "expression": {
+                        "argumentTypes": [
+                          {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        ],
+                        "id": 32216,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "lValueRequested": false,
+                        "nodeType": "ElementaryTypeNameExpression",
+                        "src": "4696:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_uint32_$",
+                          "typeString": "type(uint32)"
+                        },
+                        "typeName": {
+                          "id": 32215,
+                          "name": "uint32",
+                          "nodeType": "ElementaryTypeName",
+                          "src": "4696:6:283",
+                          "typeDescriptions": {}
+                        }
+                      },
+                      "id": 32220,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "kind": "typeConversion",
+                      "lValueRequested": false,
+                      "nameLocations": [],
+                      "names": [],
+                      "nodeType": "FunctionCall",
+                      "src": "4696:17:283",
+                      "tryCall": false,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      }
+                    },
+                    "src": "4682:31:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "id": 32222,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4682:31:283"
+                },
+                {
+                  "expression": {
+                    "id": 32230,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "id": 32223,
+                      "name": "effect",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 32198,
+                      "src": "4723:6:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint48",
+                        "typeString": "uint48"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "arguments": [
+                        {
+                          "commonType": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          },
+                          "id": 32228,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "leftExpression": {
+                            "id": 32226,
+                            "name": "raw",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 32201,
+                            "src": "4739:3:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint112",
+                              "typeString": "uint112"
+                            }
+                          },
+                          "nodeType": "BinaryOperation",
+                          "operator": ">>",
+                          "rightExpression": {
+                            "hexValue": "3634",
+                            "id": 32227,
+                            "isConstant": false,
+                            "isLValue": false,
+                            "isPure": true,
+                            "kind": "number",
+                            "lValueRequested": false,
+                            "nodeType": "Literal",
+                            "src": "4746:2:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_rational_64_by_1",
+                              "typeString": "int_const 64"
+                            },
+                            "value": "64"
+                          },
+                          "src": "4739:9:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        }
+                      ],
+                      "expression": {
+                        "argumentTypes": [
+                          {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        ],
+                        "id": 32225,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "lValueRequested": false,
+                        "nodeType": "ElementaryTypeNameExpression",
+                        "src": "4732:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_uint48_$",
+                          "typeString": "type(uint48)"
+                        },
+                        "typeName": {
+                          "id": 32224,
+                          "name": "uint48",
+                          "nodeType": "ElementaryTypeName",
+                          "src": "4732:6:283",
+                          "typeDescriptions": {}
+                        }
+                      },
+                      "id": 32229,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "kind": "typeConversion",
+                      "lValueRequested": false,
+                      "nameLocations": [],
+                      "names": [],
+                      "nodeType": "FunctionCall",
+                      "src": "4732:17:283",
+                      "tryCall": false,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint48",
+                        "typeString": "uint48"
+                      }
+                    },
+                    "src": "4723:26:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "id": 32231,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4723:26:283"
+                },
+                {
+                  "expression": {
+                    "components": [
+                      {
+                        "id": 32232,
+                        "name": "valueBefore",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32194,
+                        "src": "4768:11:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      {
+                        "id": 32233,
+                        "name": "valueAfter",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32196,
+                        "src": "4781:10:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      {
+                        "id": 32234,
+                        "name": "effect",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32198,
+                        "src": "4793:6:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint48",
+                          "typeString": "uint48"
+                        }
+                      }
+                    ],
+                    "id": 32235,
+                    "isConstant": false,
+                    "isInlineArray": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "TupleExpression",
+                    "src": "4767:33:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_uint32_$_t_uint32_$_t_uint48_$",
+                      "typeString": "tuple(uint32,uint32,uint48)"
+                    }
+                  },
+                  "functionReturnParameters": 32199,
+                  "id": 32236,
+                  "nodeType": "Return",
+                  "src": "4760:40:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32188,
+              "nodeType": "StructuredDocumentation",
+              "src": "4368:117:283",
+              "text": " @dev Split a delay into its components: valueBefore, valueAfter and effect (transition timepoint)."
+            },
+            "id": 32238,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "unpack",
+            "nameLocation": "4499:6:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32192,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32191,
+                  "mutability": "mutable",
+                  "name": "self",
+                  "nameLocation": "4512:4:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32238,
+                  "src": "4506:10:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32190,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32189,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "4506:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "4506:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "4506:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "4505:12:283"
+            },
+            "returnParameters": {
+              "id": 32199,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32194,
+                  "mutability": "mutable",
+                  "name": "valueBefore",
+                  "nameLocation": "4548:11:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32238,
+                  "src": "4541:18:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32193,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4541:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32196,
+                  "mutability": "mutable",
+                  "name": "valueAfter",
+                  "nameLocation": "4568:10:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32238,
+                  "src": "4561:17:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32195,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4561:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32198,
+                  "mutability": "mutable",
+                  "name": "effect",
+                  "nameLocation": "4587:6:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32238,
+                  "src": "4580:13:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32197,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4580:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "4540:54:283"
+            },
+            "scope": 32277,
+            "src": "4490:317:283",
+            "stateMutability": "pure",
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "body": {
+              "id": 32275,
+              "nodeType": "Block",
+              "src": "4980:112:283",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "commonType": {
+                          "typeIdentifier": "t_uint112",
+                          "typeString": "uint112"
+                        },
+                        "id": 32272,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "leftExpression": {
+                          "commonType": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          },
+                          "id": 32267,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "leftExpression": {
+                            "components": [
+                              {
+                                "commonType": {
+                                  "typeIdentifier": "t_uint112",
+                                  "typeString": "uint112"
+                                },
+                                "id": 32258,
+                                "isConstant": false,
+                                "isLValue": false,
+                                "isPure": false,
+                                "lValueRequested": false,
+                                "leftExpression": {
+                                  "arguments": [
+                                    {
+                                      "id": 32255,
+                                      "name": "effect",
+                                      "nodeType": "Identifier",
+                                      "overloadedDeclarations": [],
+                                      "referencedDeclaration": 32245,
+                                      "src": "5017:6:283",
+                                      "typeDescriptions": {
+                                        "typeIdentifier": "t_uint48",
+                                        "typeString": "uint48"
+                                      }
+                                    }
+                                  ],
+                                  "expression": {
+                                    "argumentTypes": [
+                                      {
+                                        "typeIdentifier": "t_uint48",
+                                        "typeString": "uint48"
+                                      }
+                                    ],
+                                    "id": 32254,
+                                    "isConstant": false,
+                                    "isLValue": false,
+                                    "isPure": true,
+                                    "lValueRequested": false,
+                                    "nodeType": "ElementaryTypeNameExpression",
+                                    "src": "5009:7:283",
+                                    "typeDescriptions": {
+                                      "typeIdentifier": "t_type$_t_uint112_$",
+                                      "typeString": "type(uint112)"
+                                    },
+                                    "typeName": {
+                                      "id": 32253,
+                                      "name": "uint112",
+                                      "nodeType": "ElementaryTypeName",
+                                      "src": "5009:7:283",
+                                      "typeDescriptions": {}
+                                    }
+                                  },
+                                  "id": 32256,
+                                  "isConstant": false,
+                                  "isLValue": false,
+                                  "isPure": false,
+                                  "kind": "typeConversion",
+                                  "lValueRequested": false,
+                                  "nameLocations": [],
+                                  "names": [],
+                                  "nodeType": "FunctionCall",
+                                  "src": "5009:15:283",
+                                  "tryCall": false,
+                                  "typeDescriptions": {
+                                    "typeIdentifier": "t_uint112",
+                                    "typeString": "uint112"
+                                  }
+                                },
+                                "nodeType": "BinaryOperation",
+                                "operator": "<<",
+                                "rightExpression": {
+                                  "hexValue": "3634",
+                                  "id": 32257,
+                                  "isConstant": false,
+                                  "isLValue": false,
+                                  "isPure": true,
+                                  "kind": "number",
+                                  "lValueRequested": false,
+                                  "nodeType": "Literal",
+                                  "src": "5028:2:283",
+                                  "typeDescriptions": {
+                                    "typeIdentifier": "t_rational_64_by_1",
+                                    "typeString": "int_const 64"
+                                  },
+                                  "value": "64"
+                                },
+                                "src": "5009:21:283",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint112",
+                                  "typeString": "uint112"
+                                }
+                              }
+                            ],
+                            "id": 32259,
+                            "isConstant": false,
+                            "isInlineArray": false,
+                            "isLValue": false,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "nodeType": "TupleExpression",
+                            "src": "5008:23:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint112",
+                              "typeString": "uint112"
+                            }
+                          },
+                          "nodeType": "BinaryOperation",
+                          "operator": "|",
+                          "rightExpression": {
+                            "components": [
+                              {
+                                "commonType": {
+                                  "typeIdentifier": "t_uint112",
+                                  "typeString": "uint112"
+                                },
+                                "id": 32265,
+                                "isConstant": false,
+                                "isLValue": false,
+                                "isPure": false,
+                                "lValueRequested": false,
+                                "leftExpression": {
+                                  "arguments": [
+                                    {
+                                      "id": 32262,
+                                      "name": "valueBefore",
+                                      "nodeType": "Identifier",
+                                      "overloadedDeclarations": [],
+                                      "referencedDeclaration": 32241,
+                                      "src": "5043:11:283",
+                                      "typeDescriptions": {
+                                        "typeIdentifier": "t_uint32",
+                                        "typeString": "uint32"
+                                      }
+                                    }
+                                  ],
+                                  "expression": {
+                                    "argumentTypes": [
+                                      {
+                                        "typeIdentifier": "t_uint32",
+                                        "typeString": "uint32"
+                                      }
+                                    ],
+                                    "id": 32261,
+                                    "isConstant": false,
+                                    "isLValue": false,
+                                    "isPure": true,
+                                    "lValueRequested": false,
+                                    "nodeType": "ElementaryTypeNameExpression",
+                                    "src": "5035:7:283",
+                                    "typeDescriptions": {
+                                      "typeIdentifier": "t_type$_t_uint112_$",
+                                      "typeString": "type(uint112)"
+                                    },
+                                    "typeName": {
+                                      "id": 32260,
+                                      "name": "uint112",
+                                      "nodeType": "ElementaryTypeName",
+                                      "src": "5035:7:283",
+                                      "typeDescriptions": {}
+                                    }
+                                  },
+                                  "id": 32263,
+                                  "isConstant": false,
+                                  "isLValue": false,
+                                  "isPure": false,
+                                  "kind": "typeConversion",
+                                  "lValueRequested": false,
+                                  "nameLocations": [],
+                                  "names": [],
+                                  "nodeType": "FunctionCall",
+                                  "src": "5035:20:283",
+                                  "tryCall": false,
+                                  "typeDescriptions": {
+                                    "typeIdentifier": "t_uint112",
+                                    "typeString": "uint112"
+                                  }
+                                },
+                                "nodeType": "BinaryOperation",
+                                "operator": "<<",
+                                "rightExpression": {
+                                  "hexValue": "3332",
+                                  "id": 32264,
+                                  "isConstant": false,
+                                  "isLValue": false,
+                                  "isPure": true,
+                                  "kind": "number",
+                                  "lValueRequested": false,
+                                  "nodeType": "Literal",
+                                  "src": "5059:2:283",
+                                  "typeDescriptions": {
+                                    "typeIdentifier": "t_rational_32_by_1",
+                                    "typeString": "int_const 32"
+                                  },
+                                  "value": "32"
+                                },
+                                "src": "5035:26:283",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint112",
+                                  "typeString": "uint112"
+                                }
+                              }
+                            ],
+                            "id": 32266,
+                            "isConstant": false,
+                            "isInlineArray": false,
+                            "isLValue": false,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "nodeType": "TupleExpression",
+                            "src": "5034:28:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_uint112",
+                              "typeString": "uint112"
+                            }
+                          },
+                          "src": "5008:54:283",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        },
+                        "nodeType": "BinaryOperation",
+                        "operator": "|",
+                        "rightExpression": {
+                          "arguments": [
+                            {
+                              "id": 32270,
+                              "name": "valueAfter",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 32243,
+                              "src": "5073:10:283",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_uint32",
+                                "typeString": "uint32"
+                              }
+                            }
+                          ],
+                          "expression": {
+                            "argumentTypes": [
+                              {
+                                "typeIdentifier": "t_uint32",
+                                "typeString": "uint32"
+                              }
+                            ],
+                            "id": 32269,
+                            "isConstant": false,
+                            "isLValue": false,
+                            "isPure": true,
+                            "lValueRequested": false,
+                            "nodeType": "ElementaryTypeNameExpression",
+                            "src": "5065:7:283",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_type$_t_uint112_$",
+                              "typeString": "type(uint112)"
+                            },
+                            "typeName": {
+                              "id": 32268,
+                              "name": "uint112",
+                              "nodeType": "ElementaryTypeName",
+                              "src": "5065:7:283",
+                              "typeDescriptions": {}
+                            }
+                          },
+                          "id": 32271,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "kind": "typeConversion",
+                          "lValueRequested": false,
+                          "nameLocations": [],
+                          "names": [],
+                          "nodeType": "FunctionCall",
+                          "src": "5065:19:283",
+                          "tryCall": false,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint112",
+                            "typeString": "uint112"
+                          }
+                        },
+                        "src": "5008:76:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint112",
+                          "typeString": "uint112"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_uint112",
+                          "typeString": "uint112"
+                        }
+                      ],
+                      "expression": {
+                        "id": 32251,
+                        "name": "Delay",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 32039,
+                        "src": "4997:5:283",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_userDefinedValueType$_Delay_$32039_$",
+                          "typeString": "type(Time.Delay)"
+                        }
+                      },
+                      "id": 32252,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "lValueRequested": false,
+                      "memberLocation": "5003:4:283",
+                      "memberName": "wrap",
+                      "nodeType": "MemberAccess",
+                      "src": "4997:10:283",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_wrap_pure$_t_uint112_$returns$_t_userDefinedValueType$_Delay_$32039_$",
+                        "typeString": "function (uint112) pure returns (Time.Delay)"
+                      }
+                    },
+                    "id": 32273,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4997:88:283",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "functionReturnParameters": 32250,
+                  "id": 32274,
+                  "nodeType": "Return",
+                  "src": "4990:95:283"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 32239,
+              "nodeType": "StructuredDocumentation",
+              "src": "4813:64:283",
+              "text": " @dev pack the components into a Delay object."
+            },
+            "id": 32276,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "pack",
+            "nameLocation": "4891:4:283",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 32246,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32241,
+                  "mutability": "mutable",
+                  "name": "valueBefore",
+                  "nameLocation": "4903:11:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32276,
+                  "src": "4896:18:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32240,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4896:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32243,
+                  "mutability": "mutable",
+                  "name": "valueAfter",
+                  "nameLocation": "4923:10:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32276,
+                  "src": "4916:17:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 32242,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4916:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32245,
+                  "mutability": "mutable",
+                  "name": "effect",
+                  "nameLocation": "4942:6:283",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32276,
+                  "src": "4935:13:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint48",
+                    "typeString": "uint48"
+                  },
+                  "typeName": {
+                    "id": 32244,
+                    "name": "uint48",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "4935:6:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint48",
+                      "typeString": "uint48"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "4895:54:283"
+            },
+            "returnParameters": {
+              "id": 32250,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 32249,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 32276,
+                  "src": "4973:5:283",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                    "typeString": "Time.Delay"
+                  },
+                  "typeName": {
+                    "id": 32248,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32247,
+                      "name": "Delay",
+                      "nameLocations": [
+                        "4973:5:283"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32039,
+                      "src": "4973:5:283"
+                    },
+                    "referencedDeclaration": 32039,
+                    "src": "4973:5:283",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_userDefinedValueType$_Delay_$32039",
+                      "typeString": "Time.Delay"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "4972:7:283"
+            },
+            "scope": 32277,
+            "src": "4882:210:283",
+            "stateMutability": "pure",
+            "virtual": false,
+            "visibility": "internal"
+          }
+        ],
+        "scope": 32278,
+        "src": "640:4454:283",
+        "usedErrors": [],
+        "usedEvents": []
+      }
+    ],
+    "src": "104:4991:283"
+  },
+  "compiler": {
+    "name": "solc",
+    "version": "0.8.21+commit.d9974bed.Emscripten.clang"
+  },
+  "networks": {},
+  "schemaVersion": "3.4.16",
+  "updatedAt": "2024-02-01T00:30:20.965Z",
+  "devdoc": {
+    "details": "This library provides helpers for manipulating time-related objects. It uses the following types: - `uint48` for timepoints - `uint32` for durations While the library doesn't provide specific types for timepoints and duration, it does provide: - a `Delay` type to represent duration that can be programmed to change value automatically at a given point - additional helper functions",
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  }
+}

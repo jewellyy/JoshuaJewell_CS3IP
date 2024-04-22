@@ -1,0 +1,263 @@
+{
+  "contractName": "IAuthority",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "target",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes4",
+          "name": "selector",
+          "type": "bytes4"
+        }
+      ],
+      "name": "canCall",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "allowed",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "metadata": "{\"compiler\":{\"version\":\"0.8.21+commit.d9974bed\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"caller\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"internalType\":\"bytes4\",\"name\":\"selector\",\"type\":\"bytes4\"}],\"name\":\"canCall\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"allowed\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"Standard interface for permissioning originally defined in Dappsys.\",\"kind\":\"dev\",\"methods\":{\"canCall(address,address,bytes4)\":{\"details\":\"Returns true if the caller can invoke on a target the function identified by a function selector.\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"project:/contracts/@openzeppelin/contracts/access/manager/IAuthority.sol\":\"IAuthority\"},\"evmVersion\":\"shanghai\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"project:/contracts/@openzeppelin/contracts/access/manager/IAuthority.sol\":{\"keccak256\":\"0x4cc0766bd7fb7b3bafb70afa2a93b6e313a0baec7a35ad1b57505be7861c1030\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://85871c47ac00d10664b858ef71ecd8b9787c1d313e544ab2c57210c520a3c06c\",\"dweb:/ipfs/QmUMTwojLzURuHftQLzAVuDmib9roj4KwcHCkg3LhZ2AdH\"]}},\"version\":1}",
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "immutableReferences": {},
+  "generatedSources": [],
+  "deployedGeneratedSources": [],
+  "sourceMap": "",
+  "deployedSourceMap": "",
+  "source": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.0) (access/manager/IAuthority.sol)\n\npragma solidity ^0.8.20;\n\n/**\n * @dev Standard interface for permissioning originally defined in Dappsys.\n */\ninterface IAuthority {\n    /**\n     * @dev Returns true if the caller can invoke on a target the function identified by a function selector.\n     */\n    function canCall(address caller, address target, bytes4 selector) external view returns (bool allowed);\n}\n",
+  "sourcePath": "C:\\Users\\joshu\\OneDrive\\Desktop\\Uni Work 2023-24\\Individual Project\\Smart Contracts\\contracts\\@openzeppelin\\contracts\\access\\manager\\IAuthority.sol",
+  "ast": {
+    "absolutePath": "project:/contracts/@openzeppelin/contracts/access/manager/IAuthority.sol",
+    "exportedSymbols": {
+      "IAuthority": [
+        5169
+      ]
+    },
+    "id": 5170,
+    "license": "MIT",
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 5155,
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".20"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "113:24:19"
+      },
+      {
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "IAuthority",
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "documentation": {
+          "id": 5156,
+          "nodeType": "StructuredDocumentation",
+          "src": "139:83:19",
+          "text": " @dev Standard interface for permissioning originally defined in Dappsys."
+        },
+        "fullyImplemented": false,
+        "id": 5169,
+        "linearizedBaseContracts": [
+          5169
+        ],
+        "name": "IAuthority",
+        "nameLocation": "233:10:19",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "documentation": {
+              "id": 5157,
+              "nodeType": "StructuredDocumentation",
+              "src": "250:121:19",
+              "text": " @dev Returns true if the caller can invoke on a target the function identified by a function selector."
+            },
+            "functionSelector": "b7009613",
+            "id": 5168,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "canCall",
+            "nameLocation": "385:7:19",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 5164,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 5159,
+                  "mutability": "mutable",
+                  "name": "caller",
+                  "nameLocation": "401:6:19",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 5168,
+                  "src": "393:14:19",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 5158,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "393:7:19",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 5161,
+                  "mutability": "mutable",
+                  "name": "target",
+                  "nameLocation": "417:6:19",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 5168,
+                  "src": "409:14:19",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 5160,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "409:7:19",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 5163,
+                  "mutability": "mutable",
+                  "name": "selector",
+                  "nameLocation": "432:8:19",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 5168,
+                  "src": "425:15:19",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes4",
+                    "typeString": "bytes4"
+                  },
+                  "typeName": {
+                    "id": 5162,
+                    "name": "bytes4",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "425:6:19",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes4",
+                      "typeString": "bytes4"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "392:49:19"
+            },
+            "returnParameters": {
+              "id": 5167,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 5166,
+                  "mutability": "mutable",
+                  "name": "allowed",
+                  "nameLocation": "470:7:19",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 5168,
+                  "src": "465:12:19",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 5165,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "465:4:19",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "464:14:19"
+            },
+            "scope": 5169,
+            "src": "376:103:19",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "scope": 5170,
+        "src": "223:258:19",
+        "usedErrors": [],
+        "usedEvents": []
+      }
+    ],
+    "src": "113:369:19"
+  },
+  "compiler": {
+    "name": "solc",
+    "version": "0.8.21+commit.d9974bed.Emscripten.clang"
+  },
+  "networks": {},
+  "schemaVersion": "3.4.16",
+  "updatedAt": "2024-02-01T00:30:20.562Z",
+  "devdoc": {
+    "details": "Standard interface for permissioning originally defined in Dappsys.",
+    "kind": "dev",
+    "methods": {
+      "canCall(address,address,bytes4)": {
+        "details": "Returns true if the caller can invoke on a target the function identified by a function selector."
+      }
+    },
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  }
+}
